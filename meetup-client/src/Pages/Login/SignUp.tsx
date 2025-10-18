@@ -1,6 +1,7 @@
 import { useState } from "react";
 import logo from "../../assets/logo.png";
 import bgVideo from "../../assets/bg.mp4";
+import { Link } from "react-router-dom";
 
 const SignUp = () => {
   const [isSignIn, setIsSignIn] = useState(false);
@@ -22,7 +23,7 @@ const SignUp = () => {
         {/* Overlay Content */}
         <div className="relative z-10 text-white">
           {/* Logo */}
-          <img src={logo} alt="Logo" className="w-40 mb-8" />
+          <Link to={"/"}><img src={logo} alt="Logo" className="w-40 mb-8" /></Link>
 
           {/* Heading */}
           <h1 className="text-3xl xl:text-5xl font-extrabold leading-tight mb-4 font-sans">
@@ -43,7 +44,7 @@ const SignUp = () => {
       <div className="w-full lg:w-1/2 flex flex-col justify-center items-center py-10 px-6 sm:px-10 relative">
         {/* Mobile Top Bar */}
         <div className="absolute top-4 left-4 right-4 flex justify-between items-center ">
-          <img src={logo} alt="Logo" className="w-32 sm:w-40 lg:hidden" />
+          <Link to={"/"}>   <img src={logo} alt="Logo" className="w-32 sm:w-40 lg:hidden" /></Link>
           <button className="text-blue-600 font-semibold underline text-sm sm:text-base lg:ml-140">
             Join as guest
           </button>

@@ -2,10 +2,11 @@ import express from 'express';
 import cors from 'cors';
 
 import pool from './config/database.js';
+import helmet from 'helmet'
 
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+
 
 const corOptions = {
   origin: process.env.REACT_APP_URL,
@@ -17,7 +18,7 @@ const corOptions = {
 app.use(express.json());
 
 app.use(cors(corOptions))
-
+app.use(helmet());
 
 app.get('/users', (req, res) => {
   pool.query('SELECT * FROM users', (err, results) => {

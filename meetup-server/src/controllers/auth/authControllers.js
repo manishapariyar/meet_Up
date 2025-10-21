@@ -33,7 +33,7 @@ const login = async (req, res) => {
     const refresh_token = jwt.sign(payload, process.env.REFRESH_SECRET, { expiresIn: process.env.REFRESH_EXPIRES_IN })
 
 
-
+    await save(foundUser.user_id, refresh_token);
     return res.status(200).json({
       message: "Login successful",
       access_token,
@@ -75,10 +75,11 @@ const signup = async (req, res) => {
 const refreshToken = async (req, res,) => {
   try {
     //find the refresh token in db
-    const { refresh_token } = find(req.body.refresh_token);
-    if (!refresh_token) {
-      return res.status(403).json({ message: "Refresh token not found, login again" })
+    const tokenData = await find(req.body.refresh_token);
+    if (!tokenData || tokenData.length === 0) {
+      return res.status(403).json({ message: "Refresh token not found, login again" });
     }
+    const refresh_token = req.body.refresh_token;
     //verify the refresh token
     const { user_id, username, email } = jwt.verify(refresh_token, process.env.REFRESH_SECRET);
 
@@ -92,6 +93,7 @@ const refreshToken = async (req, res,) => {
     let new_access_token = jwt.sign({ user_id, username, email }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
     let new_refresh_token = jwt.sign({ user_id, username, email }, process.env.REFRESH_SECRET, { expiresIn: process.env.REFRESH_EXPIRES_IN });
 
+    await update(user_id, refresh_token, new_refresh_token);
     return res.status(200).json({
       access_token: new_access_token,
       refresh_token: new_refresh_token
@@ -103,11 +105,11 @@ const refreshToken = async (req, res,) => {
 }
 
 
-const logout = (req, res) => {
+const logout = async (req, res) => {
   // Logout logic here
   const refresh_token = req.body.refresh_token;
   try {
-    let deletedToken = revoke(refresh_token);
+    await revoke(refresh_token);
     return res.status(200).json({ message: "Logged out successfully" });
   }
   catch (error) {

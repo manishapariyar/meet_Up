@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-
-import pool from './config/database.js';
+import dotenv from 'dotenv';
 import helmet from 'helmet'
+import authRoute from './routes/authRoute.js';
 
 
 const app = express();
@@ -14,18 +14,13 @@ const corOptions = {
 
 }
 
-
+dotenv.config();
 app.use(express.json());
 
 app.use(cors(corOptions))
 app.use(helmet());
 
-app.get('/users', (req, res) => {
-  pool.query('SELECT * FROM users', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(results);
-  });
-});
+app.use('/api/auth', authRoute)
 app.get('/', (req, res) => {
   res.send('Welcome to the Meetup Server!');
 });

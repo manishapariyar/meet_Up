@@ -1,0 +1,7 @@
+CREATE TABLE meetings (
+  meeting_id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  meeting_code VARCHAR(100) NOT NULL,
+  date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

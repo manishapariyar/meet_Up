@@ -5,8 +5,8 @@ import helmet from 'helmet'
 import authRoute from './routes/authRoute.js';
 
 
-const app = express();
 
+const app = express();
 
 const corOptions = {
   origin: process.env.REACT_APP_URL,
@@ -15,7 +15,8 @@ const corOptions = {
 }
 
 dotenv.config();
-app.use(express.json());
+app.use(express.json({ limit: '40kb' }));
+app.use(express.urlencoded({ extended: true, limit: '40kb' }));
 
 app.use(cors(corOptions))
 app.use(helmet());

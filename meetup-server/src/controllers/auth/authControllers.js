@@ -6,12 +6,12 @@ import { find, save, update, revoke } from '../../models/RefreshToken.js';
 const login = async (req, res) => {
   // Login logic here
   try {
-    let { username, password } = req.body;
+    let { email, password } = req.body;
 
-    if (!username || !password) {
+    if (!email || !password) {
       return res.status(400).json({ message: "All fields are required" })
     }
-    const user = await findByUsername(username);
+    const user = await findByUsername(email);
     if (user.length === 0) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -47,9 +47,13 @@ const login = async (req, res) => {
 
 
   } catch (error) {
-    console.error("Login error:", error);
-    return res.status(500).json({ message: "Internal Server Error" })
+    console.error("Signup error:", error);
 
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: "Email already exists" });
+    }
+
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 }
 

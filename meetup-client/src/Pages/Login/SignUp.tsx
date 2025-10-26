@@ -2,10 +2,57 @@ import { useState } from "react";
 import logo from "../../assets/logo.png";
 import bgVideo from "../../assets/bg.mp4";
 import { Link } from "react-router-dom";
+import { useAuthContext } from "../../context/AuthContext";
+import axios from "axios";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 const SignUp = () => {
-  const [isSignIn, setIsSignIn] = useState(false);
+  const navigate = useNavigate();
+  const { setUser, isSignIn, setIsSignIn } = useAuthContext();
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    password: ""
+  });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.id]: e.target.value
+    })
+  }
 
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (!isSignIn) {
+        // Handle sign-up logic here
+        const response = await axios.post('/api/auth/signup', formData);
+        toast.success("Registration Successful");
+        setUser(response.data.user);
+        toast.success("Login now");
+        // navigate('/dashboard');
+      } else {
+        // Handle login logic here
+        const response = await axios.post('/api/auth/login', {
+          email: formData.email,
+          password: formData.password
+        });
+        toast.success("Login Successful");
+        setUser(response.data.user);
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
+      // ✅ Handle known backend error message
+      if (error.response && error.response.data && error.response.data.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error("An unexpected error occurred. Please try again.");
+      }
+    }
+
+  }
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-zinc-100 overflow-hidden">
       {/* Left Section (Video Background) */}
@@ -56,17 +103,21 @@ const SignUp = () => {
             {isSignIn ? "Sign In" : "Sign Up"}
           </h2>
 
-          <form className="space-y-4">
+          <form className="space-y-4"
+            onSubmit={onSubmit}
+            onClick={(e) => e.stopPropagation()}>
             {!isSignIn && (
               <div>
-                <label htmlFor="name" className="block text-gray-700 mb-1">
+                <label htmlFor="username" className="block text-gray-700 mb-1">
                   Full Name
                 </label>
                 <input
                   type="text"
-                  id="name"
+                  id="username"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   required
+                  onChange={handleChange}
+                  value={formData.username}
                 />
               </div>
             )}
@@ -80,6 +131,8 @@ const SignUp = () => {
                 id="email"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 required
+                value={formData.email}
+                onChange={handleChange}
               />
             </div>
 
@@ -92,9 +145,10 @@ const SignUp = () => {
                 id="password"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 required
+                onChange={handleChange}
+                value={formData.password}
               />
             </div>
-
             <button
               type="submit"
               className="w-full py-2 bg-amber-500 text-white font-bold rounded-lg hover:bg-amber-600 transition"

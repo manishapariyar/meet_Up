@@ -1,8 +1,8 @@
 
 import pool from '../config/database.js';
-const findByUsername = async (username) => {
-  const query = `SELECT id AS user_id, username, email, password FROM users WHERE username = ?`;
-  const [rows] = await pool.query(query, [username]);
+const findByUsername = async (email) => {
+  const query = `SELECT id AS user_id, email, password FROM users WHERE email = ?`;
+  const [rows] = await pool.query(query, [email]);
   return rows;
 };
 

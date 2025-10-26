@@ -24,9 +24,9 @@ const Home = () => {
           </p>
 
           <div>
-            <Link to={"/sign-up"}><button className="bg-amber-500 text-white px-6 py-2 rounded-md font-semibold hover:bg-amber-700 transition">
+            <Link to={"/home"} className="bg-amber-500 text-white px-6 py-2 rounded-md font-semibold hover:bg-amber-700 transition">
               Get Started
-            </button></Link>
+            </Link>
           </div>
         </div>
 

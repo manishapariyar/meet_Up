@@ -1,7 +1,13 @@
 import Joi from "joi";
 
 const loginValidationSchema = Joi.object({
-  username: Joi.string().alphanum().min(3).max(30).required(),
+  email: Joi.string()
+    .email()
+    .required()
+    .messages({
+      "string.email": "Email must be a valid email address",
+      "any.required": "Email is required",
+    }),
   password: Joi.string()
     .min(8)
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/)

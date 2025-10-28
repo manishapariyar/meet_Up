@@ -7,6 +7,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
+
 const SignUp = () => {
   const navigate = useNavigate();
   const { setUser, isSignIn, setIsSignIn } = useAuthContext();
@@ -31,7 +32,9 @@ const SignUp = () => {
         const response = await axios.post('/api/auth/signup', formData);
         toast.success("Registration Successful");
         setUser(response.data.user);
-        toast.success("Login now");
+        setTimeout(() => {
+          toast.success("Login now");
+        }, 2000);
         // navigate('/dashboard');
       } else {
         // Handle login logic here

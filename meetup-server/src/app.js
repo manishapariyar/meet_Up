@@ -11,6 +11,7 @@ const app = express();
 const corOptions = {
   origin: process.env.REACT_APP_URL,
   credentials: true,
+  optionsSuccessStatus: 200
 
 }
 

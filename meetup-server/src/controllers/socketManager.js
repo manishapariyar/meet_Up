@@ -10,9 +10,16 @@ let timeOnline = {};
 
 
 const connectToSocket = (server) => {
-  const io = new Server(server);
+  const io = new Server(server, {
+    cors: {
+      origin: process.env.REACT_APP_URL,
+      methods: ["GET", "POST"]
+    }
+  });
 
   io.on("connection", (socket) => {
+
+    console.log("New client connected:", socket.id);
     socket.on("join-call", (path) => {
       if (!connections[path]) {
         connections[path] = [];

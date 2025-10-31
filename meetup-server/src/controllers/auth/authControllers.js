@@ -19,7 +19,7 @@ const login = async (req, res) => {
 
     const passwordMatch = await bcrypt.compare(password, foundUser.password);
     if (!passwordMatch) {
-      return res.status(401).json({ message: "Invalid credentials" })
+      return res.status(401).json({ message: "passward doesn't match" })
     }
 
 
@@ -49,10 +49,6 @@ const login = async (req, res) => {
   } catch (error) {
     console.error("Signup error:", error);
 
-    if (error.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ message: "Email already exists" });
-    }
-
     return res.status(500).json({ message: "Internal Server Error" });
   }
 }
@@ -66,7 +62,7 @@ const signup = async (req, res) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    const existingUser = await findByUsername(username);
+    const existingUser = await findByUsername(email);
 
     if (existingUser.length > 0) {
       return res.status(409).json({ message: "Username already exists" });

@@ -21,8 +21,13 @@ const connectToSocket = (server) => {
 
     console.log("New client connected:", socket.id);
     socket.on("join-call", (path) => {
+
+      if (!path || typeof path !== "string") return;
       if (!connections[path]) {
         connections[path] = [];
+      }
+      if (!messages[path]) {
+        messages[path] = [];
       }
       connections[path].push(socket.id);
       timeOnline[socket.id] = Date.now();

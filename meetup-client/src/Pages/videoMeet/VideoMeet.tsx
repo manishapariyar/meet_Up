@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { io, Socket } from "socket.io-client";
 
 declare global {
@@ -15,6 +16,7 @@ const peerConfigConnections = {
 
 interface VideoItem {
   socketId: string;
+  userName: string;
   stream?: MediaStream;
   autoplay?: boolean;
   playsinline?: boolean;
@@ -33,9 +35,20 @@ const VideoMeet = () => {
   const videoRef = useRef<VideoItem[]>([]);
 
   const [userName, setUserName] = useState("");
+  const [roomName, setRoomName] = useState("");
   const [askForUserName, setAskForUserName] = useState(true);
+  const [shareLink, setShareLink] = useState("");
 
-  // ✅ Fixed permissions (audio/video)
+  // ✅ Extract room from URL if available
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomFromUrl = params.get("room");
+    if (roomFromUrl) {
+      setRoomName(roomFromUrl);
+      setAskForUserName(true); // still ask username
+    }
+  }, []);
+
   const getPermission = async () => {
     try {
       const userMediaStream = await navigator.mediaDevices.getUserMedia({
@@ -46,14 +59,10 @@ const VideoMeet = () => {
       window.localStream = userMediaStream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = userMediaStream;
-        console.log("🎥 Local video element set");
       }
-
       setIsVideoEnabled(true);
       setIsAudioEnabled(true);
-
       try {
-        // optional screen share check
         const display = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: false,
@@ -71,7 +80,6 @@ const VideoMeet = () => {
     getPermission();
   }, []);
 
-  // silence + black screen
   const silence = () => {
     const ctx = new AudioContext();
     const oscillator = ctx.createOscillator();
@@ -85,21 +93,17 @@ const VideoMeet = () => {
   const blackScreen = ({ width = 640, height = 480 } = {}) => {
     const canvas = Object.assign(document.createElement("canvas"), { width, height });
     const ctx = canvas.getContext("2d");
-
     if (ctx) {
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, width, height);
     }
-
     const stream = canvas.captureStream();
     return Object.assign(stream.getVideoTracks()[0], { enabled: false });
   };
 
-
-  // ✅ Fixed condition in signaling handler
   const gotMessageFromServer = (fromId: string, message: string) => {
     const signal = JSON.parse(message);
-    if (fromId === socketIdRef.current) return; // ignore self messages ✅
+    if (fromId === socketIdRef.current) return;
 
     const peer = connections[fromId];
     if (!peer) return;
@@ -118,48 +122,44 @@ const VideoMeet = () => {
                   fromId,
                   JSON.stringify({ sdp: peer.localDescription })
                 );
-              })
-              .catch((e) => console.error("Answer error", e));
+              });
           }
-        })
-        .catch((e) => console.error("Remote description error", e));
+        });
     }
 
     if (signal.ice) {
-      peer
-        .addIceCandidate(new RTCIceCandidate(signal.ice))
-        .catch((e) => console.error("ICE candidate error", e));
+      peer.addIceCandidate(new RTCIceCandidate(signal.ice)).catch(console.error);
     }
   };
 
-  const connectToSocketServer = () => {
+  const connectToSocketServer = (room: string, userName: string) => {
     socketRef.current = io(server_url, { secure: true });
     socketRef.current.on("signal", gotMessageFromServer);
 
     socketRef.current.on("connect", () => {
-      socketRef.current?.emit("join-call", window.location.href);
       socketIdRef.current = socketRef.current?.id;
+      console.log("🟢 Connected with socket ID:", socketIdRef.current);
+      socketRef.current?.emit("join-call", { room, userName });
 
-      socketRef.current?.on("user-left", (id) => {
-        setVideos((prevVideos) =>
-          prevVideos.filter((video) => video.socketId !== id)
-        );
+
+      socketRef.current?.on("user-disconnected", (id) => {
+        setVideos((prev) => prev.filter((v) => v.socketId !== id));
       });
 
-      // ✅ Fixed user-joined handling and symmetric signaling
-      socketRef.current?.on("user-joined", (id, clients) => {
-        if (Array.isArray(clients)) {
-          clients.forEach((clientId: string) => {
-            if (connections[clientId]) return;
+      socketRef.current?.on("user-joined", (id, data) => {
+        // Case 1: When you join, you get a list of existing clients
+        if (!id && Array.isArray(data)) {
+          data.forEach(({ socketId, userName }) => {
+            if (connections[socketId]) return;
 
             const peer = new RTCPeerConnection(peerConfigConnections);
-            connections[clientId] = peer;
+            connections[socketId] = peer;
 
             peer.onicecandidate = (event) => {
               if (event.candidate) {
                 socketRef.current?.emit(
                   "signal",
-                  clientId,
+                  socketId,
                   JSON.stringify({ ice: event.candidate })
                 );
               }
@@ -168,188 +168,210 @@ const VideoMeet = () => {
             peer.ontrack = (event: RTCTrackEvent) => {
               const stream = event.streams[0];
               setVideos((prev) => {
-                const exists = prev.find((v) => v.socketId === clientId);
+                const exists = prev.find((v) => v.socketId === socketId);
                 if (exists) {
-                  const updated = prev.map((v) =>
-                    v.socketId === clientId ? { ...v, stream } : v
+                  return prev.map((v) =>
+                    v.socketId === socketId ? { ...v, stream } : v
                   );
-                  videoRef.current = updated;
-                  return updated;
                 }
-                const newVideo = {
-                  socketId: clientId,
-                  stream,
-                  autoplay: true,
-                  playsinline: true,
-                };
-                const updated = [...prev, newVideo];
-                videoRef.current = updated;
-                return updated;
+                return [
+                  ...prev,
+                  { socketId, userName, stream, autoplay: true, playsinline: true },
+                ];
               });
             };
 
-            // ✅ Add local tracks
             if (window.localStream) {
               window.localStream.getTracks().forEach((track) => {
                 peer.addTrack(track, window.localStream!);
               });
-            } else {
-              const blackSilenceStream = new MediaStream([
-                blackScreen(),
-                silence(),
-              ]);
-              window.localStream = blackSilenceStream;
-              blackSilenceStream.getTracks().forEach((track) => {
-                peer.addTrack(track, blackSilenceStream);
-              });
             }
 
-            // ✅ Offer/Answer exchange
-            if (id === socketIdRef.current) {
-              for (const id2 in connections) {
-                if (id2 === socketIdRef.current) continue;
-                const conn = connections[id2];
-                conn
-                  .createOffer()
-                  .then((description) => conn.setLocalDescription(description))
-                  .then(() => {
-                    socketRef.current?.emit(
-                      "signal",
-                      id2,
-                      JSON.stringify({ sdp: conn.localDescription })
-                    );
-                  })
-                  .catch((e) => console.error("Offer error", e));
-              }
-            }
+            // Create offer to existing clients
+            peer
+              .createOffer()
+              .then((description) => peer.setLocalDescription(description))
+              .then(() => {
+                socketRef.current?.emit(
+                  "signal",
+                  socketId,
+                  JSON.stringify({ sdp: peer.localDescription })
+                );
+              });
           });
         }
+
+        // Case 2: A new user joins after you
+        else if (id && typeof data === "string") {
+          console.log(`🟢 New user joined: ${data}`);
+          const peer = new RTCPeerConnection(peerConfigConnections);
+          connections[id] = peer;
+
+          peer.onicecandidate = (event) => {
+            if (event.candidate) {
+              socketRef.current?.emit(
+                "signal",
+                id,
+                JSON.stringify({ ice: event.candidate })
+              );
+            }
+          };
+
+          peer.ontrack = (event: RTCTrackEvent) => {
+            const stream = event.streams[0];
+            setVideos((prev) => [
+              ...prev,
+              { socketId: id, userName: data, stream, autoplay: true, playsinline: true },
+            ]);
+          };
+
+          if (window.localStream) {
+            window.localStream.getTracks().forEach((track) => {
+              peer.addTrack(track, window.localStream!);
+            });
+          }
+        }
       });
+
     });
 
-    // ✅ Cleanup on unmount
     window.addEventListener("beforeunload", () => {
       socketRef.current?.disconnect();
       Object.values(connections).forEach((conn) => conn.close());
     });
   };
 
-  const getMedia = async () => {
-
+  const getMedia = async (room: string, userName: string) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: isVideoEnabled,
         audio: isAudioEnabled,
       });
-      window.localStream = stream; // store it globally or in ref
-      connectToSocketServer();
+      window.localStream = stream;
+      connectToSocketServer(room, userName);
     } catch (err) {
       console.error("Error accessing media devices:", err);
     }
   };
 
   const connect = async () => {
-    try {
-      setAskForUserName(false);
-      await getPermission(); // ✅ Camera starts only when user clicks Connect
-      getMedia();            // ✅ Then connect to signaling server
-    } catch (err) {
-      console.error("Error starting connection:", err);
+    if (!userName.trim()) {
+      alert("Please enter your name");
+      return;
     }
+
+    const room = roomName.trim() || `room-${Math.random().toString(36).substring(7)}`;
+    setRoomName(room);
+
+    const fullLink = `${window.location.origin}${window.location.pathname}?room=${room}`;
+    setShareLink(fullLink);
+
+    setAskForUserName(false);
+    await getPermission();
+    getMedia(room, userName);
   };
 
-
+  const copyLink = () => {
+    navigator.clipboard.writeText(shareLink);
+    toast("✅ Meeting link copied to clipboard!");
+  };
 
   return (
     <div>
       {askForUserName ? (
         <div>
-          <h1>Please enter your name to join the meeting</h1>
-          <div className="relative w-full m-4 gap-4 flex">
-            <label
-              htmlFor="username"
-              className="absolute left-3 -top-2 px-1 text-sm text-gray-700 bg-white"
-            >
-              Full Name
-            </label>
-
+          <h1 className="text-lg font-bold mb-2">Join or Create a Meeting</h1>
+          <div className="m-4 flex flex-col gap-2">
             <input
               type="text"
-              id="username"
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
-              required
-              onChange={(e) => setUserName(e.target.value)}
+              placeholder="Your Name"
+              className="px-4 py-2 border rounded-lg"
               value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Room Name (optional)"
+              className="px-4 py-2 border rounded-lg"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
             />
             <button
               onClick={connect}
-              className="bg-amber-400 py-2 px-4 rounded-xl text-white font-itim font-bold cursor-pointer hover:bg-amber-500 transition"
+              className="bg-amber-500 text-white py-2 rounded-lg hover:bg-amber-600"
             >
-              Connect
+              Join Meeting
             </button>
           </div>
-          <div>
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ width: "400px", height: "300px", background: "black", borderRadius: "10px" }}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <h1 className="font-semibold text-lg">Room: {roomName}</h1>
+            <button
+              onClick={copyLink}
+              className="bg-gray-700 text-white px-3 py-1 rounded hover:bg-gray-800"
+            >
+              Copy Invite Link
+            </button>
+          </div>
+          <div className="relative m-">
             <video
               ref={localVideoRef}
               autoPlay
               playsInline
               muted
               style={{
-                width: "400px",
-                height: "300px",
+                width: "600px",
+                height: "420px",
                 backgroundColor: "black",
                 borderRadius: "10px",
-                objectFit: "cover",
                 marginTop: "10px",
+                marginLeft: "8px",
+                objectFit: "cover",
               }}
-            ></video>
+            />
+            <h1 className="absolute bottom-2 left-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+              {userName || "Guest"}
+            </h1>
           </div>
-        </div>
-      ) : (
-        <>
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{
-              width: "400px",
-              height: "300px",
-              backgroundColor: "black",
-              borderRadius: "10px",
-              objectFit: "cover",
-              marginTop: "10px",
-            }}
-          ></video>
 
 
-          {videos.map((video) => (
-            <div key={video.socketId}>
-              <video
-                autoPlay
-                playsInline
-                ref={(el) => {
-                  if (el && video.stream) el.srcObject = video.stream;
-                }}
-                style={{
-                  width: "400px",
-                  height: "300px",
-                  backgroundColor: "black",
-                  borderRadius: "10px",
-                  objectFit: "cover",
-                  marginTop: "10px",
-                }}
-              ></video>
 
-
-            </div>
-          ))}
+          <div className="flex flex-wrap mt-2">
+            {videos.map((video) => (
+              <div key={video.socketId} className="relative m-2">
+                <video
+                  autoPlay
+                  playsInline
+                  data-socket={video.socketId}
+                  ref={(el) => {
+                    if (el && video.stream) el.srcObject = video.stream;
+                  }}
+                  style={{
+                    width: "400px",
+                    height: "300px",
+                    backgroundColor: "black",
+                    borderRadius: "10px",
+                    objectFit: "cover",
+                  }}
+                ></video>
+                <h1 className="absolute bottom-2 left-2 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+                  {video.userName || "Guest"}
+                </h1>
+              </div>
+            ))}
+          </div>
         </>
       )}
-
-
     </div>
-
   );
 };
 

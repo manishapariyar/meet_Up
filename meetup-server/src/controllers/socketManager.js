@@ -20,39 +20,37 @@ const connectToSocket = (server) => {
   io.on("connection", (socket) => {
 
     console.log("New client connected:", socket.id);
-    socket.on("join-call", (path) => {
-
+    socket.on("join-call", (data) => {
+      const { room, userName } = data;
+      const path = room;
       if (!path || typeof path !== "string") return;
-      if (!connections[path]) {
-        connections[path] = [];
-      }
-      if (!messages[path]) {
-        messages[path] = [];
-      }
+
+      if (!connections[path]) connections[path] = [];
+      if (!messages[path]) messages[path] = [];
+
       connections[path].push(socket.id);
       timeOnline[socket.id] = Date.now();
-      // Notify existing users in the room about the new user
-      // for (let a = 0; a < connections[path].length; a++) {
-      //   io.to(connections[path][a]).emit("user-joined", socket.id);
-      // }
-      connections[path].forEach(id => {
-        io.to(id).emit("user-joined", socket.id);
+      socket.userName = userName;
+
+      const otherClients = connections[path].filter(id => id !== socket.id);
+      console.log(`User ${socket.id} joined room: ${path}`);
+      console.log(`Other clients in room:`, otherClients);
+
+      otherClients.forEach(id => {
+        io.to(id).emit("user-joined", socket.id, userName);
       });
 
-      // Send existing messages to the newly joined user
-      //   if (connections[path] !== undefined) {
-      //     for (let a = 0; a < messages[path].length; ++a) {
-      //       io.to(socket.id).emit("chat-message", messages[path][a]['data'], messages[path][a]['sender'], messages[path][a]['socket-id-sender']);
+      io.to(socket.id).emit("user-joined", null, otherClients.map(id => ({
+        socketId: id,
+        userName: io.sockets.sockets.get(id)?.userName || "Guest"
+      })));
 
-      //     }
-      //   }
-      if (messages[path]) {
-        messages[path].forEach(msg => {
-          io.to(socket.id).emit("chat-message", msg['data'], msg['sender'], msg['socket-id-sender']);
-        })
-      }
+      // Send previous messages if any
+      messages[path].forEach(msg => {
+        io.to(socket.id).emit("chat-message", msg.data, msg.sender, msg["socket-id-sender"]);
+      });
+    });
 
-    })
 
 
     // Signaling for WebRTC (peers to peers connection)

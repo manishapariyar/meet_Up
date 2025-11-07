@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { AiFillAudio, AiOutlineAudio, AiOutlineAudioMuted } from "react-icons/ai";
+import { IoVideocamOff, IoVideocam } from "react-icons/io5";
+import { MdCallEnd, MdOutlineScreenShare, MdOutlineStopScreenShare } from "react-icons/md";
+import { RxButton } from "react-icons/rx";
 import { io, Socket } from "socket.io-client";
+import ChatBox from "./ChatBox";
+import { IoMdChatbubbles } from "react-icons/io";
 
 declare global {
   interface Window {
@@ -29,7 +35,7 @@ const VideoMeet = () => {
 
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [screenAvailable, setScreenAvailable] = useState(false);
+  const [screenAvailable, setScreenAvailable] = useState(true);
 
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const videoRef = useRef<VideoItem[]>([]);
@@ -38,6 +44,10 @@ const VideoMeet = () => {
   const [roomName, setRoomName] = useState("");
   const [askForUserName, setAskForUserName] = useState(true);
   const [shareLink, setShareLink] = useState("");
+  // Chat states
+  const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; fromMe: boolean }[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [showChat, setShowChat] = useState(false);
 
   // ✅ Extract room from URL if available
   useEffect(() => {
@@ -75,6 +85,7 @@ const VideoMeet = () => {
       console.error("Error accessing media devices.", error);
     }
   };
+
 
   useEffect(() => {
     getPermission();
@@ -241,6 +252,24 @@ const VideoMeet = () => {
     });
   };
 
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on("chat-message", (msg) => {
+      // msg = { sender, text, socketId }
+      setChatMessages((prev) => [
+        ...prev,
+        { sender: msg.sender, text: msg.text, fromMe: false },
+      ]);
+    });
+
+    return () => {
+      socketRef.current?.off("chat-message");
+    };
+  }, [socketRef.current]);
+
+
+
   const getMedia = async (room: string, userName: string) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -275,6 +304,17 @@ const VideoMeet = () => {
     navigator.clipboard.writeText(shareLink);
     toast("✅ Meeting link copied to clipboard!");
   };
+  const sendMessage = () => {
+    if (newMessage.trim() === "") return;
+    socketRef.current?.emit("chat-message", {
+      text: newMessage,
+      sender: userName,
+    });
+
+    setChatMessages((prev) => [...prev, { sender: userName, text: newMessage, fromMe: true }]);
+    setNewMessage("");
+  };
+
 
   return (
     <div>
@@ -313,7 +353,7 @@ const VideoMeet = () => {
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between">
+          {/* <div className="flex items-center justify-between">
             <h1 className="font-semibold text-lg">Room: {roomName}</h1>
             <button
               onClick={copyLink}
@@ -321,33 +361,111 @@ const VideoMeet = () => {
             >
               Copy Invite Link
             </button>
-          </div>
-          <div className="relative m-">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              style={{
-                width: "600px",
-                height: "420px",
-                backgroundColor: "black",
-                borderRadius: "10px",
-                marginTop: "10px",
-                marginLeft: "8px",
-                objectFit: "cover",
-              }}
+          </div> */}
+          <div className="relative h-screen bg-[#08081b]">
+            <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex justify-center gap-2">
+              <button
+                onClick={() => {
+                  if (window.localStream) {
+                    const videoTrack = window.localStream.getVideoTracks()[0];
+                    if (videoTrack) {
+                      videoTrack.enabled = !videoTrack.enabled;
+                      setIsVideoEnabled(videoTrack.enabled);
+                    }
+                  }
+                }}
+                className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
+              >
+                {isVideoEnabled ? (
+                  <IoVideocam className="text-gray-800 text-3xl" />
+                ) : (
+                  <IoVideocamOff className="text-red-700 text-3xl" />
+                )}
+
+              </button>
+              <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
+                onClick={() => {
+                  if (window.localStream) {
+                    const audioTrack = window.localStream.getAudioTracks()[0];
+                    if (audioTrack) {
+                      audioTrack.enabled = !audioTrack.enabled;
+                      setIsAudioEnabled(audioTrack.enabled);
+                    }
+                  }
+                }}
+              >
+                {isAudioEnabled ? (
+                  <AiOutlineAudio className="text-gray-800 text-3xl" />
+
+                ) : (
+                  <AiOutlineAudioMuted className="text-red-700 text-3xl" />
+                )}
+              </button>
+              <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg">
+                <MdCallEnd className="text-red-700 text-3xl" />
+              </button>
+
+              <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
+                onClick={() => {
+                  setScreenAvailable((prev) => !prev);
+                }}
+              >
+                {screenAvailable ? (
+                  <MdOutlineScreenShare className="text-gray-800 text-3xl" />
+                ) : (
+                  <MdOutlineStopScreenShare className="text-red-700 text-3xl" />
+                )}
+              </button>
+              <button
+                onClick={() => setShowChat((prev) => !prev)}
+                className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
+              >
+                <IoMdChatbubbles className="text-gray-800 text-3xl" />
+              </button>
+            </div>
+            {/* 💬 Chat Toggle Button */}
+
+
+            <ChatBox
+              showChat={showChat}
+              setShowChat={setShowChat}
+              chatMessages={chatMessages}
+              newMessage={newMessage}
+              setNewMessage={setNewMessage}
+              sendMessage={sendMessage}
             />
-            <h1 className="absolute bottom-2 left-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-              {userName || "Guest"}
-            </h1>
+
+
+
+            <div className="absolute bottom-20 right-3">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{
+                  width: "auto",
+                  height: "200px",
+                  backgroundColor: "black",
+                  borderRadius: "10px",
+                  marginTop: "10px",
+                  marginLeft: "8px",
+                  objectFit: "cover",
+                  right: "2px"
+
+                }}
+              />
+              <h1 className="absolute bottom-2 left-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+                {userName || "Guest"}
+              </h1>
+            </div>
           </div>
 
 
 
-          <div className="flex flex-wrap mt-2">
+          <div className="flex relative top-0">
             {videos.map((video) => (
-              <div key={video.socketId} className="relative m-2">
+              <div key={video.socketId} className="relative m-1">
                 <video
                   autoPlay
                   playsInline
@@ -356,10 +474,10 @@ const VideoMeet = () => {
                     if (el && video.stream) el.srcObject = video.stream;
                   }}
                   style={{
-                    width: "400px",
-                    height: "300px",
+                    width: "auto",
+                    height: "200px",
                     backgroundColor: "black",
-                    borderRadius: "10px",
+                    borderRadius: "2px",
                     objectFit: "cover",
                   }}
                 ></video>

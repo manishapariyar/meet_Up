@@ -59,36 +59,36 @@ const connectToSocket = (server) => {
     })
 
     // Chat message handling
-    socket.on("chat-message", (data, sender) => {
-      // Find the room the sender belongs to
-
-      const [matchingRoom, found] = Object.entries(connections).reduce(([room, isFound], [roomkey, roomvalue]) => {
-        if (!isFound && roomvalue.includes(socket.id)) {
-          return [roomkey, true];
-        }
-        return [room, isFound];
-
-      }, ['', false]);
+    socket.on("chat-message", (msg) => {
+      const [matchingRoom, found] = Object.entries(connections).reduce(
+        ([room, isFound], [roomKey, roomValue]) => {
+          if (!isFound && roomValue.includes(socket.id)) {
+            return [roomKey, true];
+          }
+          return [room, isFound];
+        },
+        ["", false]
+      );
 
       if (found) {
-        // Initialize message array for the room if it doesn't exist
-        if (!messages[matchingRoom]) {
-          messages[matchingRoom] = [];
-        }
-      }
-      messages[matchingRoom].push({
-        'sender': sender,
-        'data': data,
-        'socket-id-sender': socket.id
-      });
-      console.log("message received at server:", data, "from:", sender)
+        if (!messages[matchingRoom]) messages[matchingRoom] = [];
 
-      // Broadcast the message to all users in the room
-      connections[matchingRoom].forEach(socketId => {
-        io.to(socketId).emit("chat-message", data, sender, socket.id);
-      });
-    }
-    )
+        const message = {
+          sender: msg.sender,
+          text: msg.text,
+          socketId: socket.id,
+        };
+
+        messages[matchingRoom].push(message);
+        console.log("💬 Message received:", message);
+
+        // Send to all users in the same room (including sender)
+        connections[matchingRoom].forEach((socketId) => {
+          io.to(socketId).emit("chat-message", message);
+        });
+      }
+    });
+
 
     // Handle user disconnection
     socket.on("disconnect", () => {

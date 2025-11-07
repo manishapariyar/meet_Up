@@ -257,6 +257,7 @@ const VideoMeet = () => {
 
     socketRef.current.on("chat-message", (msg) => {
       // msg = { sender, text, socketId }
+      if (msg.socketId === socketIdRef.current) return;
       setChatMessages((prev) => [
         ...prev,
         { sender: msg.sender, text: msg.text, fromMe: false },

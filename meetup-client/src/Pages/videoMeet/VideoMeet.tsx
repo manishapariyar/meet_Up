@@ -7,6 +7,8 @@ import { RxButton } from "react-icons/rx";
 import { io, Socket } from "socket.io-client";
 import ChatBox from "./ChatBox";
 import { IoMdChatbubbles } from "react-icons/io";
+import { TiPinOutline } from "react-icons/ti";
+import PinnedVideo from "./PinnedVideo";
 
 declare global {
   interface Window {
@@ -20,13 +22,17 @@ const peerConfigConnections = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-interface VideoItem {
+export interface VideoItem {
+  id: string;
   socketId: string;
   userName: string;
   stream?: MediaStream;
   autoplay?: boolean;
   playsinline?: boolean;
+  isLocal?: boolean;
+  ref?: React.RefObject<HTMLVideoElement>;
 }
+
 
 const VideoMeet = () => {
   const socketRef = useRef<Socket | null>(null);
@@ -35,7 +41,7 @@ const VideoMeet = () => {
 
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [screenAvailable, setScreenAvailable] = useState(true);
+  const [screenAvailable, setScreenAvailable] = useState(false);
 
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const videoRef = useRef<VideoItem[]>([]);
@@ -48,6 +54,8 @@ const VideoMeet = () => {
   const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; fromMe: boolean }[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [showChat, setShowChat] = useState(false);
+  const [pinnedVideo, setPinnedVideo] = useState<string | null>(null);
+  const [showPinned, setShowPinned] = useState(false);
 
   // ✅ Extract room from URL if available
   useEffect(() => {
@@ -179,17 +187,21 @@ const VideoMeet = () => {
             peer.ontrack = (event: RTCTrackEvent) => {
               const stream = event.streams[0];
               setVideos((prev) => {
-                const exists = prev.find((v) => v.socketId === socketId);
-                if (exists) {
-                  return prev.map((v) =>
-                    v.socketId === socketId ? { ...v, stream } : v
-                  );
-                }
+                const exists = prev.some((v) => v.socketId === socketId);
+                if (exists) return prev;
                 return [
                   ...prev,
-                  { socketId, userName, stream, autoplay: true, playsinline: true },
+                  {
+                    socketId,
+                    userName,
+                    stream,
+                    autoplay: true,
+                    playsinline: true,
+                    id: `${socketId}-${Date.now()}`, // ✅ unique key
+                  },
                 ];
               });
+
             };
 
             if (window.localStream) {
@@ -230,10 +242,22 @@ const VideoMeet = () => {
 
           peer.ontrack = (event: RTCTrackEvent) => {
             const stream = event.streams[0];
-            setVideos((prev) => [
-              ...prev,
-              { socketId: id, userName: data, stream, autoplay: true, playsinline: true },
-            ]);
+            setVideos((prev) => {
+              const exists = prev.some((v) => v.socketId === id);
+              if (exists) return prev;
+              return [
+                ...prev,
+                {
+                  socketId: id,
+                  userName: data,
+                  stream,
+                  autoplay: true,
+                  playsinline: true,
+                  id: `${id}-${Date.now()}`,
+                },
+              ];
+            });
+
           };
 
           if (window.localStream) {
@@ -289,7 +313,6 @@ const VideoMeet = () => {
       alert("Please enter your name");
       return;
     }
-
     const room = roomName.trim() || `room-${Math.random().toString(36).substring(7)}`;
     setRoomName(room);
 
@@ -314,6 +337,113 @@ const VideoMeet = () => {
 
     setChatMessages((prev) => [...prev, { sender: userName, text: newMessage, fromMe: true }]);
     setNewMessage("");
+  };
+
+  const handleVideo = () => {
+    const videoTrack = window.localStream?.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    const enabled = !videoTrack.enabled;
+    videoTrack.enabled = enabled;
+    setIsVideoEnabled(enabled);
+
+    // Update local preview
+    if (localVideoRef.current && window.localStream) {
+      localVideoRef.current.srcObject = enabled ? window.localStream : null;
+    }
+
+    // Update remote peers
+    Object.values(connections).forEach((peer) => {
+      const sender = peer.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) sender.replaceTrack(enabled ? videoTrack : null);
+    });
+  };
+
+  const handleAudio = () => {
+    const audioTrack = window.localStream?.getAudioTracks()[0];
+    if (!audioTrack) return;
+
+    const enabled = !audioTrack.enabled;
+    audioTrack.enabled = enabled;
+    setIsAudioEnabled(enabled);
+
+    // Update remote peers
+    Object.values(connections).forEach((peer) => {
+      const sender = peer.getSenders().find((s) => s.track?.kind === "audio");
+      if (sender) sender.replaceTrack(enabled ? audioTrack : null);
+    });
+  };
+
+  const handleScreenShare = async () => {
+    if (!screenAvailable) {
+      // Start screen share
+      try {
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = displayStream.getVideoTracks()[0];
+
+        // Replace the local camera track with screen track
+        Object.values(connections).forEach((peer) => {
+          const sender = peer.getSenders().find((s) => s.track?.kind === "video");
+          if (sender) sender.replaceTrack(screenTrack);
+        });
+
+        // Show shared screen in your own preview
+        if (localVideoRef.current) localVideoRef.current.srcObject = displayStream;
+
+        // When user stops screen share from browser UI
+        screenTrack.onended = () => {
+          stopScreenShare();
+        };
+
+        setScreenAvailable(true);
+      } catch (err) {
+        console.error("Screen share failed:", err);
+        setScreenAvailable(false);
+      }
+    } else {
+      stopScreenShare();
+    }
+  };
+  const stopScreenShare = () => {
+    const videoTrack = window.localStream?.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    // Replace screen with webcam stream
+    Object.values(connections).forEach((peer) => {
+      const sender = peer.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) sender.replaceTrack(videoTrack);
+    });
+
+    // Restore local preview
+    if (localVideoRef.current && window.localStream) localVideoRef.current.srcObject = window.localStream;
+
+    setScreenAvailable(false);
+  };
+
+  const handleEndCall = () => {
+    // Stop all local tracks
+    window.localStream?.getTracks().forEach((track) => track.stop());
+
+    // Close all peer connections
+    Object.values(connections).forEach((peer) => peer.close());
+    connections = {};
+
+    // Disconnect from socket
+    socketRef.current?.disconnect();
+
+    // Clear UI
+    setVideos([]);
+    setShowChat(false);
+    setAskForUserName(true);
+    setRoomName("");
+    setShareLink("");
+    setUserName("");
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+
+    toast("Call ended.");
   };
 
 
@@ -366,15 +496,7 @@ const VideoMeet = () => {
           <div className="relative h-screen bg-[#08081b]">
             <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex justify-center gap-2">
               <button
-                onClick={() => {
-                  if (window.localStream) {
-                    const videoTrack = window.localStream.getVideoTracks()[0];
-                    if (videoTrack) {
-                      videoTrack.enabled = !videoTrack.enabled;
-                      setIsVideoEnabled(videoTrack.enabled);
-                    }
-                  }
-                }}
+                onClick={handleVideo}
                 className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
               >
                 {isVideoEnabled ? (
@@ -385,15 +507,7 @@ const VideoMeet = () => {
 
               </button>
               <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
-                onClick={() => {
-                  if (window.localStream) {
-                    const audioTrack = window.localStream.getAudioTracks()[0];
-                    if (audioTrack) {
-                      audioTrack.enabled = !audioTrack.enabled;
-                      setIsAudioEnabled(audioTrack.enabled);
-                    }
-                  }
-                }}
+                onClick={handleAudio}
               >
                 {isAudioEnabled ? (
                   <AiOutlineAudio className="text-gray-800 text-3xl" />
@@ -402,14 +516,12 @@ const VideoMeet = () => {
                   <AiOutlineAudioMuted className="text-red-700 text-3xl" />
                 )}
               </button>
-              <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg">
+              <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg" onClick={handleEndCall}>
                 <MdCallEnd className="text-red-700 text-3xl" />
               </button>
 
               <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
-                onClick={() => {
-                  setScreenAvailable((prev) => !prev);
-                }}
+                onClick={handleScreenShare}
               >
                 {screenAvailable ? (
                   <MdOutlineScreenShare className="text-gray-800 text-3xl" />
@@ -456,9 +568,26 @@ const VideoMeet = () => {
 
                 }}
               />
-              <h1 className="absolute bottom-2 left-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-                {userName || "Guest"}
-              </h1>
+              <div className="absolute bottom-2 left-4 flex items-center gap-2">
+                <h1 className="text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+                  {userName || "Guest"}
+                </h1>
+                <TiPinOutline className="text-amber-500 text-2xl hover:cursor-pointer" onClick={() => setShowPinned(true)} />
+
+
+              </div>
+              {showPinned && (
+                <div className="absolute inset-0 bg-black/80 flex justify-center items-center z-50">
+                  <PinnedVideo
+                    videos={videos}
+                    pinnedVideo={pinnedVideo}
+                    setPinnedVideo={setPinnedVideo}
+                    socketId={""}
+                    id=""
+                    userName={userName}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -466,7 +595,7 @@ const VideoMeet = () => {
 
           <div className="flex relative top-0">
             {videos.map((video) => (
-              <div key={video.socketId} className="relative m-1">
+              <div key={video.id} className="relative m-1">
                 <video
                   autoPlay
                   playsInline
@@ -482,9 +611,13 @@ const VideoMeet = () => {
                     objectFit: "cover",
                   }}
                 ></video>
-                <h1 className="absolute bottom-2 left-2 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-                  {video.userName || "Guest"}
-                </h1>
+
+                <div className="absolute bottom-2 left-4 flex items-center gap-2">
+                  <h1 className="text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+                    {video.userName || "Guest"}
+                  </h1>
+                  <TiPinOutline className=" text-2xl hover:cursor-pointer" onClick={() => setShowPinned(true)} />
+                </div>
               </div>
             ))}
           </div>

@@ -34,7 +34,7 @@ const connectToSocket = (server) => {
 
       const otherClients = connections[path].filter(id => id !== socket.id);
       console.log(`User ${socket.id} joined room: ${path}`);
-      console.log(`Other clients in room:`, otherClients);
+      // console.log(`Other clients in room:`, otherClients);
 
       otherClients.forEach(id => {
         io.to(id).emit("user-joined", socket.id, userName);
@@ -80,7 +80,7 @@ const connectToSocket = (server) => {
         };
 
         messages[matchingRoom].push(message);
-        console.log("💬 Message received:", message);
+        // console.log("💬 Message received:", message);
 
         // Send to all users in the same room (including sender)
         connections[matchingRoom].forEach((socketId) => {

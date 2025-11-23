@@ -9,6 +9,7 @@ import ChatBox from "./ChatBox";
 import { IoMdChatbubbles } from "react-icons/io";
 import { TiPinOutline } from "react-icons/ti";
 import PinnedVideo from "./PinnedVideo";
+import EnterPage from "./EnterPage";
 
 declare global {
   interface Window {
@@ -302,27 +303,16 @@ const VideoMeet = () => {
         audio: isAudioEnabled,
       });
       window.localStream = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
       connectToSocketServer(room, userName);
     } catch (err) {
       console.error("Error accessing media devices:", err);
     }
   };
 
-  const connect = async () => {
-    if (!userName.trim()) {
-      alert("Please enter your name");
-      return;
-    }
-    const room = roomName.trim() || `room-${Math.random().toString(36).substring(7)}`;
-    setRoomName(room);
 
-    const fullLink = `${window.location.origin}${window.location.pathname}?room=${room}`;
-    setShareLink(fullLink);
-
-    setAskForUserName(false);
-    await getPermission();
-    getMedia(room, userName);
-  };
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareLink);
@@ -450,50 +440,25 @@ const VideoMeet = () => {
   return (
     <div>
       {askForUserName ? (
-        <div>
-          <h1 className="text-lg font-bold mb-2">Join or Create a Meeting</h1>
-          <div className="m-4 flex flex-col gap-2">
-            <input
-              type="text"
-              placeholder="Your Name"
-              className="px-4 py-2 border rounded-lg"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Room Name (optional)"
-              className="px-4 py-2 border rounded-lg"
-              value={roomName}
-              onChange={(e) => setRoomName(e.target.value)}
-            />
-            <button
-              onClick={connect}
-              className="bg-amber-500 text-white py-2 rounded-lg hover:bg-amber-600"
-            >
-              Join Meeting
-            </button>
-          </div>
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{ width: "400px", height: "300px", background: "black", borderRadius: "10px" }}
+        <>
+          <EnterPage
+            userName={userName}
+            setUserName={setUserName}
+            roomName={roomName}
+            setRoomName={setRoomName}
+            setShareLink={setShareLink}
+            setAskForUserName={setAskForUserName}
+            getPermission={getPermission}
+            getMedia={getMedia}
+            localVideoRef={localVideoRef}
+
           />
-        </div>
+
+        </>
       ) : (
         <>
-          {/* <div className="flex items-center justify-between">
-            <h1 className="font-semibold text-lg">Room: {roomName}</h1>
-            <button
-              onClick={copyLink}
-              className="bg-gray-700 text-white px-3 py-1 rounded hover:bg-gray-800"
-            >
-              Copy Invite Link
-            </button>
-          </div> */}
-          <div className="relative h-screen bg-[#08081b]">
+
+          <div className="relative h-screen bg-[#08081b]  w-full">
             <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex justify-center gap-2">
               <button
                 onClick={handleVideo}
@@ -589,38 +554,39 @@ const VideoMeet = () => {
                 </div>
               )}
             </div>
-          </div>
+            <div className="flex ">
+              {videos.map((video) => (
+                <div key={video.id} className="relative m-1">
+                  <video
+                    autoPlay
+                    playsInline
+                    data-socket={video.socketId}
+                    ref={(el) => {
+                      if (el && video.stream) el.srcObject = video.stream;
+                    }}
+                    style={{
+                      width: "auto",
+                      height: "200px",
+                      backgroundColor: "black",
+                      borderRadius: "2px",
+                      objectFit: "cover",
+                    }}
+                  ></video>
 
-
-
-          <div className="flex relative top-0">
-            {videos.map((video) => (
-              <div key={video.id} className="relative m-1">
-                <video
-                  autoPlay
-                  playsInline
-                  data-socket={video.socketId}
-                  ref={(el) => {
-                    if (el && video.stream) el.srcObject = video.stream;
-                  }}
-                  style={{
-                    width: "auto",
-                    height: "200px",
-                    backgroundColor: "black",
-                    borderRadius: "2px",
-                    objectFit: "cover",
-                  }}
-                ></video>
-
-                <div className="absolute bottom-2 left-4 flex items-center gap-2">
-                  <h1 className="text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-                    {video.userName || "Guest"}
-                  </h1>
-                  <TiPinOutline className=" text-2xl hover:cursor-pointer" onClick={() => setShowPinned(true)} />
+                  <div className="absolute bottom-2 left-4 flex items-center gap-2">
+                    <h1 className="text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+                      {video.userName || "Guest"}
+                    </h1>
+                    <TiPinOutline className=" text-2xl hover:cursor-pointer" onClick={() => setShowPinned(true)} />
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+
+
+
+
         </>
       )}
     </div>

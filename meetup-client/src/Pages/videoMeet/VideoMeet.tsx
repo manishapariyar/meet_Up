@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { AiFillAudio, AiOutlineAudio, AiOutlineAudioMuted } from "react-icons/ai";
+import { AiOutlineAudio, AiOutlineAudioMuted } from "react-icons/ai";
 import { IoVideocamOff, IoVideocam } from "react-icons/io5";
 import { MdCallEnd, MdOutlineScreenShare, MdOutlineStopScreenShare } from "react-icons/md";
-import { RxButton } from "react-icons/rx";
 import { io, Socket } from "socket.io-client";
 import ChatBox from "./ChatBox";
 import { IoMdChatbubbles } from "react-icons/io";
 import { TiPinOutline } from "react-icons/ti";
 import PinnedVideo from "./PinnedVideo";
 import EnterPage from "./EnterPage";
+import VideoCard from "./VideoCard";
+import { useAuthContext } from "../../context/AuthContext";
+
 
 declare global {
   interface Window {
@@ -37,6 +39,7 @@ export interface VideoItem {
 
 const VideoMeet = () => {
   const socketRef = useRef<Socket | null>(null);
+  const { user, } = useAuthContext();
   const socketIdRef = useRef<string | undefined>(undefined);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -45,7 +48,6 @@ const VideoMeet = () => {
   const [screenAvailable, setScreenAvailable] = useState(false);
 
   const [videos, setVideos] = useState<VideoItem[]>([]);
-  const videoRef = useRef<VideoItem[]>([]);
 
   const [userName, setUserName] = useState("");
   const [roomName, setRoomName] = useState("");
@@ -100,7 +102,7 @@ const VideoMeet = () => {
     getPermission();
   }, []);
 
-  const silence = () => {
+  {/* const silence = () => {
     const ctx = new AudioContext();
     const oscillator = ctx.createOscillator();
     const dst = ctx.createMediaStreamDestination();
@@ -119,7 +121,7 @@ const VideoMeet = () => {
     }
     const stream = canvas.captureStream();
     return Object.assign(stream.getVideoTracks()[0], { enabled: false });
-  };
+  }; */}
 
   const gotMessageFromServer = (fromId: string, message: string) => {
     const signal = JSON.parse(message);
@@ -314,10 +316,10 @@ const VideoMeet = () => {
 
 
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(shareLink);
-    toast("✅ Meeting link copied to clipboard!");
-  };
+  // const copyLink = () => {
+  //   navigator.clipboard.writeText(shareLink);
+  //   toast("✅ Meeting link copied to clipboard!");
+  // };
   const sendMessage = () => {
     if (newMessage.trim() === "") return;
     socketRef.current?.emit("chat-message", {
@@ -438,9 +440,11 @@ const VideoMeet = () => {
 
 
   return (
-    <div>
+    <div className="w-full h-screen">
       {askForUserName ? (
+
         <>
+
           <EnterPage
             userName={userName}
             setUserName={setUserName}
@@ -451,143 +455,114 @@ const VideoMeet = () => {
             getPermission={getPermission}
             getMedia={getMedia}
             localVideoRef={localVideoRef}
-
           />
+
 
         </>
       ) : (
-        <>
+        <div className="w-full h-screen flex overflow-hidden">
 
-          <div className="relative h-screen bg-[#08081b]  w-full">
-            <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex justify-center gap-2">
-              <button
-                onClick={handleVideo}
-                className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
-              >
-                {isVideoEnabled ? (
-                  <IoVideocam className="text-gray-800 text-3xl" />
-                ) : (
-                  <IoVideocamOff className="text-red-700 text-3xl" />
-                )}
-
-              </button>
-              <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
-                onClick={handleAudio}
-              >
-                {isAudioEnabled ? (
-                  <AiOutlineAudio className="text-gray-800 text-3xl" />
-
-                ) : (
-                  <AiOutlineAudioMuted className="text-red-700 text-3xl" />
-                )}
-              </button>
-              <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg" onClick={handleEndCall}>
-                <MdCallEnd className="text-red-700 text-3xl" />
-              </button>
-
-              <button className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
-                onClick={handleScreenShare}
-              >
-                {screenAvailable ? (
-                  <MdOutlineScreenShare className="text-gray-800 text-3xl" />
-                ) : (
-                  <MdOutlineStopScreenShare className="text-red-700 text-3xl" />
-                )}
-              </button>
-              <button
-                onClick={() => setShowChat((prev) => !prev)}
-                className="p-1 rounded-xl bg-transparent hover:bg-gray-200 transition shadow-lg"
-              >
-                <IoMdChatbubbles className="text-gray-800 text-3xl" />
-              </button>
+          <div
+            className={`relative h-full bg-[#020215] transition-all duration-300 ${showChat ? "w-[80%]" : "w-full"
+              }`}
+          >
+            <div className="p-4 flex flex-wrap gap-3">
+              {videos.map((v) => (
+                <VideoCard
+                  key={v.id}
+                  stream={v.stream}
+                  id={v.id}
+                  socketId={v.socketId}
+                  userName={v.userName}
+                />
+              ))}
             </div>
-            {/* 💬 Chat Toggle Button */}
 
 
-            <ChatBox
-              showChat={showChat}
-              setShowChat={setShowChat}
-              chatMessages={chatMessages}
-              newMessage={newMessage}
-              setNewMessage={setNewMessage}
-              sendMessage={sendMessage}
-            />
-
-
-
-            <div className="absolute bottom-20 right-3">
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{
-                  width: "auto",
-                  height: "200px",
-                  backgroundColor: "black",
-                  borderRadius: "10px",
-                  marginTop: "10px",
-                  marginLeft: "8px",
-                  objectFit: "cover",
-                  right: "2px"
-
-                }}
-              />
-              <div className="absolute bottom-2 left-4 flex items-center gap-2">
-                <h1 className="text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+            {/* Local video */}
+            <div className="absolute bottom-24 right-4">
+              <div className="relative">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="h-[200px] rounded-md bg-black object-cover"
+                />
+                <div className="absolute bottom-2 left-3 bg-black/50 text-white text-xs px-2 py-1 rounded flex items-center gap-2">
                   {userName || "Guest"}
-                </h1>
-                <TiPinOutline className="text-amber-500 text-2xl hover:cursor-pointer" onClick={() => setShowPinned(true)} />
-
-
+                  <TiPinOutline
+                    className="text-amber-400 text-xl cursor-pointer"
+                    onClick={() => setShowPinned(true)}
+                  />
+                </div>
               </div>
+
+
               {showPinned && (
                 <div className="absolute inset-0 bg-black/80 flex justify-center items-center z-50">
-                  <PinnedVideo
-                    videos={videos}
-                    pinnedVideo={pinnedVideo}
-                    setPinnedVideo={setPinnedVideo}
-                    socketId={""}
-                    id=""
-                    userName={userName}
-                  />
+                  <PinnedVideo videos={videos} pinnedVideo={pinnedVideo} setPinnedVideo={setPinnedVideo} socketId={""} id="" userName={userName} />
                 </div>
               )}
             </div>
-            <div className="flex ">
-              {videos.map((video) => (
-                <div key={video.id} className="relative m-1">
-                  <video
-                    autoPlay
-                    playsInline
-                    data-socket={video.socketId}
-                    ref={(el) => {
-                      if (el && video.stream) el.srcObject = video.stream;
-                    }}
-                    style={{
-                      width: "auto",
-                      height: "200px",
-                      backgroundColor: "black",
-                      borderRadius: "2px",
-                      objectFit: "cover",
-                    }}
-                  ></video>
 
-                  <div className="absolute bottom-2 left-4 flex items-center gap-2">
-                    <h1 className="text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-                      {video.userName || "Guest"}
-                    </h1>
-                    <TiPinOutline className=" text-2xl hover:cursor-pointer" onClick={() => setShowPinned(true)} />
-                  </div>
-                </div>
-              ))}
+            {/* Bottom control bar */}
+            <div className="absolute bottom-0 w-full flex justify-center gap-3 py-2 bg-white/20 backdrop-blur-md border-t shadow-xl">
+              <button onClick={handleVideo} className="p-2 rounded-xl hover:bg-gray-200">
+                {isVideoEnabled ? (
+                  <IoVideocam className="text-white text-3xl" />
+                ) : (
+                  <IoVideocamOff className="text-red-600 text-3xl" />
+                )}
+              </button>
+
+              <button onClick={handleAudio} className="p-2 rounded-xl hover:bg-gray-200">
+                {isAudioEnabled ? (
+                  <AiOutlineAudio className="text-white text-3xl" />
+                ) : (
+                  <AiOutlineAudioMuted className="text-red-600 text-3xl" />
+                )}
+              </button>
+
+              <button onClick={handleEndCall} className="p-2 rounded-xl hover:bg-gray-200">
+                <MdCallEnd className="text-red-600 text-3xl" />
+              </button>
+
+              <button
+                onClick={handleScreenShare}
+                className="p-2 rounded-xl hover:bg-gray-200"
+              >
+                {screenAvailable ? (
+                  <MdOutlineScreenShare className="text-white text-3xl" />
+                ) : (
+                  <MdOutlineStopScreenShare className="text-red-600 text-3xl" />
+                )}
+              </button>
+
+              <button
+                onClick={() => setShowChat((prev) => !prev)}
+                className="p-2 rounded-xl hover:bg-gray-200"
+              >
+                <IoMdChatbubbles className="text-white text-3xl" />
+              </button>
             </div>
           </div>
-
-
-
-
-        </>
+          <div
+            className={`h-full bg-white shadow-xl transition-all duration-300 overflow-hidden ${showChat ? "w-[20%]" : "w-0"
+              }`}
+          >
+            {showChat && (
+              <ChatBox
+                showChat={showChat}
+                setShowChat={setShowChat}
+                chatMessages={chatMessages}
+                newMessage={newMessage}
+                setNewMessage={setNewMessage}
+                sendMessage={sendMessage}
+              />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

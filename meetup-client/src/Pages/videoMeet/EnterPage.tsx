@@ -47,36 +47,38 @@ const EnterPage: React.FC<EnterPageProps> = ({
 
 
   return (
-    <><h1 className="text-lg font-bold mb-2">Join or Create a Meeting</h1><div className=" bg-[#08081] w-full h-screen flex flex-row justify-center items-center">
+    <div className="flex flex-col items-center justify-center p-10 bg-neutral-200 w-full h-full gap-6">
+      <h1 className="text-2xl font-bold text-blue-600">Join or Create a Meeting</h1>
 
-
-      <video
-        ref={localVideoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ width: "400px", height: "300px", background: "black", borderRadius: "10px" }} />
-      <div className="m-4 flex flex-col gap-2">
-        <input
-          type="text"
-          placeholder="Your Name"
-          className="px-4 py-2 border rounded-lg"
-          value={userName}
-          onChange={(e) => setUserName(e.target.value)} />
-        <input
-          type="text"
-          placeholder="Room Name (optional)"
-          className="px-4 py-2 border rounded-lg"
-          value={roomName}
-          onChange={(e) => setRoomName(e.target.value)} />
-        <button
-          onClick={connect}
-          className="bg-amber-500 text-white py-2 rounded-lg hover:bg-amber-600"
-        >
-          Join Meeting
-        </button>
+      <div className=" bg-[#08081] w-full  flex flex-row justify-center items-center">
+        <video
+          ref={localVideoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{ width: "400px", height: "300px", background: "black", borderRadius: "10px" }} />
+        <div className="m-4 flex flex-col gap-2">
+          <input
+            type="text"
+            placeholder="Your Name"
+            className="px-4 py-2 border border-gray-500  rounded-lg"
+            value={userName}
+            onChange={(e) => setUserName(e.target.value)} />
+          <input
+            type="text"
+            placeholder="Room Name (optional)"
+            className="px-4 py-2 border  border-gray-500 rounded-lg"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)} />
+          <button
+            onClick={connect}
+            className="bg-amber-500 text-white py-2 rounded-lg hover:bg-amber-600"
+          >
+            Join Meeting
+          </button>
+        </div>
       </div>
-    </div></>
+    </div>
   )
 }
 

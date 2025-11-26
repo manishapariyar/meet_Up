@@ -10,7 +10,7 @@ import { TiPinOutline } from "react-icons/ti";
 import PinnedVideo from "./PinnedVideo";
 import EnterPage from "./EnterPage";
 import VideoCard from "./VideoCard";
-import { useAuthContext } from "../../context/AuthContext";
+
 
 
 declare global {
@@ -39,7 +39,6 @@ export interface VideoItem {
 
 const VideoMeet = () => {
   const socketRef = useRef<Socket | null>(null);
-  const { user, } = useAuthContext();
   const socketIdRef = useRef<string | undefined>(undefined);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
 

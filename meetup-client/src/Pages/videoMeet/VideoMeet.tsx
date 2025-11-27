@@ -188,6 +188,7 @@ const VideoMeet = () => {
 
             peer.ontrack = (event: RTCTrackEvent) => {
               const stream = event.streams[0];
+
               setVideos((prev) => {
                 const exists = prev.some((v) => v.socketId === socketId);
                 if (exists) return prev;
@@ -244,6 +245,7 @@ const VideoMeet = () => {
 
           peer.ontrack = (event: RTCTrackEvent) => {
             const stream = event.streams[0];
+            const vidRef = React.createRef<HTMLVideoElement>();
             setVideos((prev) => {
               const exists = prev.some((v) => v.socketId === id);
               if (exists) return prev;
@@ -256,9 +258,14 @@ const VideoMeet = () => {
                   autoplay: true,
                   playsinline: true,
                   id: `${id}-${Date.now()}`,
-                },
+                  ref: vidRef,
+                } as VideoItem,
               ];
             });
+
+            setTimeout(() => {
+              if (vidRef.current) vidRef.current.srcObject = stream;
+            }, 0);
 
           };
 
@@ -479,34 +486,46 @@ const VideoMeet = () => {
 
 
             {/* Local video */}
-            <div className="absolute bottom-24 right-4">
-              <div className="relative">
+            <div
+              className={`${screenAvailable
+                ? "fixed inset-0 flex items-center justify-center bg-black z-40"
+                : "absolute right-2 bottom-20 w-[300px]  z-40"
+                }`}
+            >
+
+              <div className="relative w-full">
                 <video
                   ref={localVideoRef}
                   autoPlay
                   playsInline
                   muted
-                  className="h-[200px] rounded-md bg-black object-cover"
+                  className={`rounded-md bg-black object-cover
+      ${screenAvailable ? "w-full h-full" : "h-[220px]"}
+      ${showPinned ? "w-[800px] " : ""}
+    `}
                 />
-                <div className="absolute bottom-2 left-3 bg-black/50 text-white text-xs px-2 py-1 rounded flex items-center gap-2">
-                  {userName || "Guest"}
-                  <TiPinOutline
-                    className="text-amber-400 text-xl cursor-pointer"
-                    onClick={() => setShowPinned(true)}
-                  />
-                </div>
+
+
+                {/* Show username ONLY when not fullscreen */}
+                {!screenAvailable && (
+                  <div className="absolute bottom-2 left-3 bg-black/50 text-white text-xs px-2 py-1 rounded flex items-center gap-2">
+                    {userName || "Guest"}
+                    <TiPinOutline
+                      className="text-amber-400 text-xl cursor-pointer"
+                      onClick={() => setShowPinned(true)}
+                    />
+                  </div>
+                )}
               </div>
 
 
-              {showPinned && (
-                <div className="absolute inset-0 bg-black/80 flex justify-center items-center z-50">
-                  <PinnedVideo videos={videos} pinnedVideo={pinnedVideo} setPinnedVideo={setPinnedVideo} socketId={""} id="" userName={userName} />
-                </div>
-              )}
             </div>
 
+
+
             {/* Bottom control bar */}
-            <div className="absolute bottom-0 w-full flex justify-center gap-3 py-2 bg-white/20 backdrop-blur-md border-t shadow-xl">
+            <div className="absolute bottom-0 w-full flex justify-center gap-3 py-2 bg-white/20 backdrop-blur-md border-t shadow-xl z-50">
+
               <button onClick={handleVideo} className="p-2 rounded-xl hover:bg-gray-200">
                 {isVideoEnabled ? (
                   <IoVideocam className="text-white text-3xl" />

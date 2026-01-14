@@ -57,7 +57,7 @@ const VideoMeet = () => {
   const [newMessage, setNewMessage] = useState("");
   const [showChat, setShowChat] = useState(false);
   const [pinnedVideo, setPinnedVideo] = useState<string | null>(null);
-  const [showPinned, setShowPinned] = useState(false);
+
 
   // ✅ Extract room from URL if available
   useEffect(() => {
@@ -444,9 +444,23 @@ const VideoMeet = () => {
     toast("Call ended.");
   };
 
+  const handlePin = (id: string) => {
+    setPinnedVideo(prev => (prev === id ? null : id));
+  };
+
+  const SIDE_VIDEO_COUNT = 2;
+  const pinned = pinnedVideo
+    ? videos.find(v => v.socketId === pinnedVideo)
+    : null;
+
+  const remainingVideos = videos.filter(v => v.socketId !== pinnedVideo);
+
+  const sideVideos = remainingVideos.slice(0, SIDE_VIDEO_COUNT);
+  const bottomVideos = remainingVideos.slice(SIDE_VIDEO_COUNT);
+
 
   return (
-    <div className="w-full h-screen">
+    <div className="w-full h-screen bg-neutral-200">
       {askForUserName ? (
 
         <>
@@ -472,54 +486,85 @@ const VideoMeet = () => {
             className={`relative h-full bg-[#020215] transition-all duration-300 ${showChat ? "w-[80%]" : "w-full"
               }`}
           >
+            {pinnedVideo && (
+              <div className="flex gap-3 h-[65vh] mt-2">
+
+                {/* LEFT: PINNED VIDEO */}
+                <div className="flex-1 bg-[#020215] rounded-xl relative">
+                  {pinnedVideo === "local" ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-contain rounded-xl"
+                    />
+                  ) : (
+                    pinned && (
+                      <video
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-contain rounded-xl"
+                        ref={el => {
+                          if (el && pinned.stream) {
+                            el.srcObject = pinned.stream;
+                          }
+                        }}
+                      />
+                    )
+                  )}
+
+                  {/* Overlay */}
+                  <div className="absolute bottom-4 left-4 flex items-center gap-3 bg-black/60 text-white text-sm px-4 py-2 rounded-lg">
+                    <span>{pinned?.userName || userName || "You"}</span>
+                    <TiPinOutline
+                      className="text-amber-400 cursor-pointer"
+                      onClick={() => setPinnedVideo(null)}
+                    />
+                  </div>
+                </div>
+
+                {/* RIGHT: SIDE VIDEOS */}
+                <div className="w-[280px] flex flex-col gap-3">
+                  {sideVideos.map(v => (
+                    <VideoCard
+                      socketId={v.socketId}
+                      stream={v.stream}
+                      userName={v.userName}
+                      onPin={() => handlePin(v.socketId)}
+                    />
+                  ))}
+                </div>
+
+              </div>
+            )}
+
+
+            {/* REMOTE VIDEOS */}
             <div className="p-4 flex flex-wrap gap-3">
-              {videos.map((v) => (
+              {bottomVideos.map(v => (
                 <VideoCard
-                  key={v.id}
-                  stream={v.stream}
-                  id={v.id}
                   socketId={v.socketId}
+                  stream={v.stream}
                   userName={v.userName}
+                  onPin={() => handlePin(v.socketId)}
                 />
               ))}
             </div>
 
 
             {/* Local video */}
-            <div
-              className={`${screenAvailable
-                ? "fixed inset-0 flex items-center justify-center bg-black z-40"
-                : "absolute right-2 bottom-20 w-[300px]  z-40"
-                }`}
-            >
-
-              <div className="relative w-full">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`rounded-md bg-black object-cover
-      ${screenAvailable ? "w-full h-full" : "h-[220px]"}
-      ${showPinned ? "w-[800px] " : ""}
-    `}
-                />
-
-
-                {/* Show username ONLY when not fullscreen */}
-                {!screenAvailable && (
-                  <div className="absolute bottom-2 left-3 bg-black/50 text-white text-xs px-2 py-1 rounded flex items-center gap-2">
-                    {userName || "Guest"}
-                    <TiPinOutline
-                      className="text-amber-400 text-xl cursor-pointer"
-                      onClick={() => setShowPinned(true)}
-                    />
-                  </div>
-                )}
+            {/* {pinnedVideo !== "local" && (
+              <div className="absolute bottom-20 right-2 w-[280px]">
+                <div className="relative">
+                  <video ref={localVideoRef} autoPlay muted className="rounded-xl" />
+                  <TiPinOutline
+                    className="absolute bottom-2 right-2 text-amber-400 cursor-pointer"
+                    onClick={() => handlePin("local")}
+                  />
+                </div>
               </div>
-
-
-            </div>
+            )} */}
 
 
 
@@ -566,7 +611,7 @@ const VideoMeet = () => {
             </div>
           </div>
           <div
-            className={`h-full bg-white shadow-xl transition-all duration-300 overflow-hidden ${showChat ? "w-[20%]" : "w-0"
+            className={`h-full rouded-xl bg-white shadow-xl transition-all duration-300 overflow-hidden ${showChat ? "w-[20%]" : "w-0"
               }`}
           >
             {showChat && (

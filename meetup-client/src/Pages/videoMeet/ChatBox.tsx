@@ -26,7 +26,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   if (!showChat) return null
 
   return (
-    <div className="w-full h-full  rounded-none shadow-xl flex flex-col">
+    <div className="w-full h-full rounded-xl shadow-xl flex flex-col ">
 
 
       <div className="font-semibold p-3 bg-gray-100 border-b">
